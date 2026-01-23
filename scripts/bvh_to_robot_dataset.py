@@ -7,7 +7,7 @@ from tqdm import tqdm
 import torch
 import pickle
 
-from general_motion_retargeting.utils.lafan1 import load_lafan1_file
+from general_motion_retargeting.utils.lafan1 import load_bvh_file
 from general_motion_retargeting.kinematics_model import KinematicsModel
 from general_motion_retargeting import GeneralMotionRetargeting as GMR
 from rich import print
@@ -52,8 +52,14 @@ if __name__ == "__main__":
     src_folder = args.src_folder
     tgt_folder = args.tgt_folder
 
-   
-   
+    # Initialize the retargeting system once (outside the loop for efficiency)
+    print("Initializing retargeting system...")
+    retarget = GMR(
+        src_human="bvh_lafan1",
+        tgt_robot=args.robot,
+        verbose=False,  # Disable verbose to avoid printing for each file
+    )
+    print("Retargeting system initialized.")
         
     # walk over all files in src_folder
     for dirpath, _, filenames in os.walk(src_folder):
@@ -73,39 +79,38 @@ if __name__ == "__main__":
             
             # Load LAFAN1 trajectory
             try:
-                lafan1_data_frames, actual_human_height = load_lafan1_file(bvh_file_path)
+                lafan1_data_frames, actual_human_height = load_bvh_file(bvh_file_path, format="lafan1")
                 src_fps = 30  # LAFAN1 data is typically 30 FPS
+                print(f"Loaded {bvh_file_path}: {len(lafan1_data_frames)} frames")
             except Exception as e:
                 print(f"Error loading {bvh_file_path}: {e}")
                 continue
 
-            
-            # Initialize the retargeting system
-            retarget = GMR(
-                src_human="bvh",
-                tgt_robot=args.robot,
-                actual_human_height=actual_human_height,
-            )
-            model = mj.MjModel.from_xml_path(retarget.xml_file)
-            data = mj.MjData(model)
-
-            
-
             # retarget to get all qpos
+            print(f"Processing {len(lafan1_data_frames)} frames from {filename}...")
             qpos_list = []
             for curr_frame in range(len(lafan1_data_frames)):
+                if curr_frame % 100 == 0 or curr_frame == len(lafan1_data_frames) - 1:
+                    print(f"  Frame {curr_frame + 1}/{len(lafan1_data_frames)}")
                 smplx_data = lafan1_data_frames[curr_frame]
                 
                 # Retarget till convergence
                 qpos = retarget.retarget(smplx_data)
                 
                 qpos_list.append(qpos.copy())
+            print(f"Completed retargeting for {filename}")
             
             qpos_list = np.array(qpos_list)
 
             # Initialize the forward kinematics
-            device = "cuda:0"
-            kinematics_model = KinematicsModel(retarget.xml_file, device=device)
+            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            print(f"Using device: {device} for forward kinematics")
+            try:
+                kinematics_model = KinematicsModel(retarget.xml_file, device=device)
+            except Exception as e:
+                print(f"Error initializing kinematics model: {e}")
+                print(f"Skipping {filename}")
+                continue
             
             root_pos = qpos_list[:, :3]
             root_rot = qpos_list[:, 3:7]
@@ -150,7 +155,7 @@ if __name__ == "__main__":
                 "link_body_list": body_names,
             }
             
-
+            print(f"Saving to {tgt_file_path}...")
             os.makedirs(os.path.dirname(tgt_file_path), exist_ok=True)
             with open(tgt_file_path, "wb") as f:
                 pickle.dump(motion_data, f)
