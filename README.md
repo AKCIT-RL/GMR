@@ -180,14 +180,12 @@ This repo is licensed under the [MIT License](LICENSE).
 
 ## Installation
 
-> [!NOTE]
-> The code is tested on Ubuntu 22.04/20.04.
 
-First create your conda environment:
+First, create your Python environment using uv venv (recommended):
 
 ```bash
-conda create -n gmr python=3.10 -y
-conda activate gmr
+uv venv --python 3.10
+source .venv/bin/activate
 ```
 
 Then, install GMR:
@@ -198,10 +196,10 @@ pip install -e .
 
 After installing SMPLX, change `ext` in `smplx/body_models.py` from `npz` to `pkl` if you are using SMPL-X pkl files.
 
-And to resolve some possible rendering issues:
+To resolve some possible rendering issues (if needed):
 
 ```bash
-conda install -c conda-forge libstdcxx-ng -y
+sudo apt install libstdc++6
 ```
 
 ## Data Preparation
