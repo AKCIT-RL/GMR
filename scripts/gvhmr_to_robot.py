@@ -60,6 +60,12 @@ if __name__ == "__main__":
         help="Limit the rate of the retargeted robot motion to keep the same as the human motion.",
     )
 
+    parser.add_argument(
+        "--video_save_path",
+        default=None,
+        help="Caminho completo para o vídeo de saída. Padrão: videos/<robot>_<stem>.mp4",
+    )
+
     args = parser.parse_args()
 
 
@@ -84,11 +90,14 @@ if __name__ == "__main__":
         tgt_robot=args.robot,
     )
     
+    _default_video = f"videos/{args.robot}_{args.gvhmr_pred_file.split('/')[-1].split('.')[0]}.mp4"
+    _video_path = args.video_save_path if args.video_save_path else _default_video
+
     robot_motion_viewer = RobotMotionViewer(robot_type=args.robot,
                                             motion_fps=aligned_fps,
                                             transparent_robot=0,
                                             record_video=args.record_video,
-                                            video_path=f"videos/{args.robot}_{args.gvhmr_pred_file.split('/')[-1].split('.')[0]}.mp4",)
+                                            video_path=_video_path,)
     
 
     curr_frame = 0
