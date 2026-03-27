@@ -158,6 +158,26 @@ if __name__ == "__main__":
         # save from wxyz to xyzw
         root_rot = np.array([qpos[3:7][[1,2,3,0]] for qpos in qpos_list])
         dof_pos = np.array([qpos[7:] for qpos in qpos_list])
+
+        # Normalize root_pos z per-motion using FK so the lowest foot sole
+        # across the entire motion lands exactly at z=0.
+        # foot_sole_offset: distance from foot_link body frame down to the
+        # contact surface in the deploy model (T1_23dof.xml):
+        #   geom center z = -0.0214208, half-size z = 0.02183 → sole at -0.04325m
+        import mujoco as _mj
+        foot_sole_offset = 0.04325  # [m]
+        _model = retarget.configuration.model
+        _data = _mj.MjData(_model)
+        _left_id  = _mj.mj_name2id(_model, _mj.mjtObj.mjOBJ_BODY, 'left_foot_link')
+        _right_id = _mj.mj_name2id(_model, _mj.mjtObj.mjOBJ_BODY, 'right_foot_link')
+        min_sole_z = np.inf
+        for _qpos in qpos_list:
+            _data.qpos[:] = _qpos
+            _mj.mj_kinematics(_model, _data)
+            min_sole_z = min(min_sole_z,
+                             _data.xpos[_left_id,  2] - foot_sole_offset,
+                             _data.xpos[_right_id, 2] - foot_sole_offset)
+        root_pos[:, 2] -= min_sole_z  # shift so lowest sole = z=0
         local_body_pos = None
         body_names = None
         
