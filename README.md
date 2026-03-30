@@ -495,6 +495,55 @@ After launching the MuJoCo visualization window and clicking on it, you can use 
 | 13th Gen Intel Core i9-13900K 24-Cores | 35~45 FPS |
 | TBD | TBD |
 
+## Docker
+
+A `Dockerfile` is provided for running GMR headlessly in a container, without installing MuJoCo, Python, or any system dependency manually.
+
+### Prerequisites
+
+- Docker Engine 20.10+
+- [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+- Body models and robot assets in `assets/` (same as the manual setup — see **Data Preparation** above)
+
+That's it — no `conda`, no system MuJoCo install needed on the host.
+
+### Build
+
+```bash
+# From the GMR/ directory (or via CopyCat's compose)
+docker build -t copycat-gmr:latest .
+
+# Or via CopyCat Docker Compose
+docker compose -f ../docker-compose.yml build gmr
+```
+
+### Run
+
+The image is designed to be used via CopyCat's `run_pipeline_docker.py`. For standalone use:
+
+```bash
+docker run --rm --gpus all \
+  -e MUJOCO_GL=egl \
+  -v ./assets:/app/assets:ro \
+  -v ./output:/app/output \
+  -v ./videos:/app/videos \
+  -v /path/to/genmo/outputs:/genmo_outputs:ro \
+  copycat-gmr:latest \
+  python scripts/gvhmr_to_robot.py \
+    --robot booster_t1 \
+    --pkl_path /genmo_outputs/demo/my_video/hmr4d_results.pt \
+    --save_path /app/output/pkl/booster_t1_my_video.pkl \
+    --record_video
+```
+
+### Notes
+
+- **Headless rendering**: The container uses `MUJOCO_GL=egl` with NVIDIA GPU for offscreen rendering via `mj.Renderer`. No display or X11 server required.
+- **No interactive viewer**: `mjv.launch_passive()` (GLFW) is not available in this branch. Visualization is video-only (`--record_video`).
+- The `assets/`, `output/`, and `videos/` directories are excluded from the image via `.dockerignore`. Mount them as volumes.
+
+---
+
 ## Citation
 
 If you find our code useful, please consider citing our related papers:
