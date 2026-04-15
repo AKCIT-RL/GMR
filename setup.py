@@ -17,7 +17,7 @@ setup(
     "mujoco",
     "numpy",
     "scipy",
-    "qpsolvers[proxqp]",
+    "qpsolvers[daqp]",
     "rich",
     "tqdm",
     "opencv-python",

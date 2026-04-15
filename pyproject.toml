@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "general_motion_retargeting"
+version = "0.2.0"
+description = "General Motion Retargeting (GMR) for Humanoid Robots"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Yanjie Ze", email = "lastyanjieze@gmail.com" }]
+urls = { Homepage = "https://github.com/YanjieZe/GMR" }
+dependencies = [
+    "loop_rate_limiters",
+    "mink",
+    "mujoco>=3.1.0",
+    "numpy",
+    "scipy",
+    "qpsolvers[daqp]",
+    "rich",
+    "tqdm",
+    "opencv-python",
+    "natsort",
+    "psutil",
+    "smplx @ git+https://github.com/vchoutas/smplx.git",
+    "protobuf",
+    "redis[hiredis]",
+    "imageio[ffmpeg]",
+    "torch>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["general_motion_retargeting*"]
+
+[dependency-groups]
+dev = ["pytest>=7.0"]
+
+# Prefer CPU wheels for torch (smaller; sufficient for GMR / evaluation).
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra"
