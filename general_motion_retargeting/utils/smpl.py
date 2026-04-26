@@ -260,7 +260,7 @@ def get_smplx_data_offline_fast(smplx_data, body_model, smplx_output, tgt_fps=30
 
 
 
-def get_gvhmr_data_offline_fast(smplx_data, body_model, smplx_output, tgt_fps=30):
+def get_gvhmr_data_offline_fast(smplx_data, body_model, smplx_output, tgt_fps=30, flip_facing=False):
     """
     Must return a dictionary with the following structure:
     {
@@ -357,6 +357,14 @@ def get_gvhmr_data_offline_fast(smplx_data, body_model, smplx_output, tgt_fps=30
             orientation = utils.quat_mul(rotation_quat, result[joint_name][1])
             position = result[joint_name][0] @ rotation_matrix.T
             result[joint_name] = (position, orientation)
-            
+
+    if flip_facing:
+        flip_matrix = np.array([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+        flip_quat = R.from_matrix(flip_matrix).as_quat(scalar_first=True)
+        for result in smplx_data_frames:
+            for joint_name in result.keys():
+                orientation = utils.quat_mul(flip_quat, result[joint_name][1])
+                position = result[joint_name][0] @ flip_matrix.T
+                result[joint_name] = (position, orientation)
 
     return smplx_data_frames, aligned_fps

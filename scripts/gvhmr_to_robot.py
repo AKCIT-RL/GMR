@@ -66,6 +66,13 @@ if __name__ == "__main__":
         help="Caminho completo para o vídeo de saída. Padrão: videos/<robot>_<stem>.mp4",
     )
 
+    parser.add_argument(
+        "--flip_facing",
+        action="store_true",
+        default=True,
+        help="Flip 180° around the vertical axis. Use when the video was recorded facing the camera.",
+    )
+
     args = parser.parse_args()
 
 
@@ -79,7 +86,7 @@ if __name__ == "__main__":
     
     # align fps
     tgt_fps = 30
-    smplx_data_frames, aligned_fps = get_gvhmr_data_offline_fast(smplx_data, body_model, smplx_output, tgt_fps=tgt_fps)
+    smplx_data_frames, aligned_fps = get_gvhmr_data_offline_fast(smplx_data, body_model, smplx_output, tgt_fps=tgt_fps, flip_facing=args.flip_facing)
     
     
    
