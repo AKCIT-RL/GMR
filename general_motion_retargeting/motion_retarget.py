@@ -104,6 +104,16 @@ class GeneralMotionRetargeting:
         
         self.ground_offset = 0.0
 
+        # Foot-height correction: prevent feet from going below z=0.
+        # Configured via "foot_body_names" and "foot_clearance" in the IK config JSON.
+        foot_body_names = ik_config.get("foot_body_names", [])
+        self._foot_clearance = ik_config.get("foot_clearance", 0.0)
+        self._foot_body_ids = [
+            mj.mj_name2id(self.model, mj.mjtObj.mjOBJ_BODY, name)
+            for name in foot_body_names
+            if mj.mj_name2id(self.model, mj.mjtObj.mjOBJ_BODY, name) >= 0
+        ]
+
     def setup_retarget_configuration(self):
         self.configuration = mink.Configuration(self.model)
     
@@ -216,6 +226,14 @@ class GeneralMotionRetargeting:
                 num_iter += 1
                 
             
+        # Foot-height correction: lift root so no foot geometry goes below z=0.
+        if self._foot_body_ids and self._foot_clearance > 0.0:
+            foot_z = min(self.configuration.data.xpos[bid, 2] for bid in self._foot_body_ids)
+            lowest = foot_z - self._foot_clearance
+            if lowest < 0.0:
+                self.configuration.data.qpos[2] -= lowest
+                mj.mj_kinematics(self.configuration.model, self.configuration.data)
+
         return self.configuration.data.qpos.copy()
 
 
