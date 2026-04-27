@@ -32,13 +32,31 @@ python scripts/eval_retarget_metrics.py \
 - **`--mujoco`:** self-collision proxy via contact penetration; requires a scene XML without extra moving objects, or tune exclusions in code.
 - **Torque / `mj_inverse`:** not implemented. Torques depend on contacts, timestep, and actuator model; treat as future work if you need hardware-style limits.
 
+## Orientation normalization
+
+BVH and video-based (SMPL-X/GVHMR) pipelines often produce trajectories with different absolute headings in the world frame (e.g. one facing +X, the other facing −X). Computing FK metrics on raw world-frame positions inflates errors even for identical joint poses.
+
+By default (`normalize_orientation=True`), the pipeline applies `canonicalize_heading` to both trajectories before FK:
+
+1. Extracts the yaw of frame 0's `root_rot`
+2. Rotates the full trajectory so frame 0 faces +X
+3. Centers XY so frame 0 is at the origin
+
+This makes FK metrics (MPJPE, EE RMSE, bone cosine) **invariant to the initial global heading and XY offset**. Joint-space metrics (`dof_pos` RMSE/MAE, DTW) are already rotation-invariant and are **not affected**.
+
+To disable and see raw world-frame errors:
+
+```bash
+python scripts/eval_retarget_metrics.py ... --no_normalize_orientation
+```
+
 ## Metrics
 
 | Block | Content |
 |-------|---------|
 | DTW | Dynamic time warping on resampled `dof_pos`; aligned path for joint/FK errors |
 | Joint | RMSE/MAE per joint (DTW-aligned), jerk (`np.gradient`), joint limit violation rate (XML limits) |
-| FK | Mean body-frame L2 error (MPJPE-like), optional EE RMSE, mean bone-direction cosine |
+| FK | Mean body-frame L2 error (MPJPE-like), optional EE RMSE, mean bone-direction cosine — computed after orientation normalization by default |
 | MuJoCo | Optional: fraction of frames with penetrating robot–robot contacts |
 
 ## Programmatic use
