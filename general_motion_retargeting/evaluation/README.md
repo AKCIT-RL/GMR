@@ -34,15 +34,21 @@ python scripts/eval_retarget_metrics.py \
 
 ## Orientation normalization
 
-BVH and video-based (SMPL-X/GVHMR) pipelines often produce trajectories with different absolute headings in the world frame (e.g. one facing +X, the other facing −X). Computing FK metrics on raw world-frame positions inflates errors even for identical joint poses.
+BVH and video-based (SMPL-X/GVHMR) pipelines often produce trajectories that differ in two ways unrelated to retargeting quality:
+
+**1. Global heading** — the robot may face +X in one trajectory and −X in the other depending on how the person was oriented during capture. Computing FK metrics on raw world-frame positions inflates errors even for identical joint poses.
+
+**2. Vertical (Z) drift** — monocular video estimators (GVHMR) infer depth from a single camera. In motions with horizontal displacement (trot, run), the model accumulates small per-frame Z errors that sum to a visible upward drift (up to ~0.13 m over a full motion). BVH capture has no such drift since 3D positions are measured directly. This drift inflates MPJPE and EE RMSE and dominates the ranking for locomotion motions.
 
 By default (`normalize_orientation=True`), the pipeline applies `canonicalize_heading` to both trajectories before FK:
 
-1. Extracts the yaw of frame 0's `root_rot`
-2. Rotates the full trajectory so frame 0 faces +X
-3. Centers XY so frame 0 is at the origin
+1. Extracts the yaw of frame 0's `root_rot` and rotates all frames so the robot starts facing +X
+2. Subtracts frame 0 XY so the trajectory starts at the origin
+3. Subtracts frame 0 Z so both trajectories start at the same height
 
-This makes FK metrics (MPJPE, EE RMSE, bone cosine) **invariant to the initial global heading and XY offset**. Joint-space metrics (`dof_pos` RMSE/MAE, DTW) are already rotation-invariant and are **not affected**.
+This makes FK metrics (MPJPE, EE RMSE, bone cosine) **invariant to initial heading, XY offset, and absolute Z offset**. Joint-space metrics (`dof_pos` RMSE/MAE, DTW) are already rotation-invariant and are **not affected**.
+
+> **Note on Z normalization:** subtracting frame 0 Z removes the absolute height offset but not the accumulated drift within the motion. Motions with large drift (trot, run) will still show higher MPJPE than static motions — but the metric now reflects genuine pose divergence rather than a systematic estimator bias.
 
 To disable and see raw world-frame errors:
 
