@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from general_motion_retargeting.evaluation.alignment import dtw_distance, resample_full_trajectory
 from general_motion_retargeting.evaluation.defaults import ee_bodies_for_robot
 from general_motion_retargeting.evaluation.io import assert_compatible_pair, load_motion_pkl
+from general_motion_retargeting.evaluation.orientation import canonicalize_heading
 from general_motion_retargeting.evaluation.joint_metrics import (
     compare_jerk,
     joint_limit_violations,
@@ -28,6 +29,7 @@ class EvalConfig:
     target_fps: Optional[float] = None
     dtw_window: Optional[int] = None
     use_fk: bool = True
+    normalize_orientation: bool = True
     use_mujoco: bool = False
     ee_body_names: Optional[List[str]] = None
     device: str = "cpu"
@@ -84,13 +86,19 @@ def run_evaluation(cfg: EvalConfig) -> Dict[str, Any]:
     if cfg.use_fk:
         from general_motion_retargeting.evaluation.fk_metrics import fk_full_metrics
 
+        fk_rpm, fk_rrm = rpm_w, rrm_w
+        fk_rpg, fk_rrg = rpg_w, rrg_w
+        if cfg.normalize_orientation:
+            fk_rpm, fk_rrm = canonicalize_heading(rpm_w, rrm_w)
+            fk_rpg, fk_rrg = canonicalize_heading(rpg_w, rrg_w)
+
         fk_block = fk_full_metrics(
             xml,
-            rpm_w,
-            rrm_w,
+            fk_rpm,
+            fk_rrm,
             dqm_w,
-            rpg_w,
-            rrg_w,
+            fk_rpg,
+            fk_rrg,
             dqg_w,
             ee_body_names=ee,
             device=cfg.device,
@@ -116,6 +124,7 @@ def run_evaluation(cfg: EvalConfig) -> Dict[str, Any]:
             "dtw_path_length": int(K),
             "dtw_total_cost": float(dtw_cost),
             "dtw_mean_step_cost": float(dtw_cost / max(1, K)),
+            "fk_orientation_normalized": cfg.normalize_orientation,
         },
         "joint_space": {
             "q_error_dtw_aligned": q_err,

@@ -34,6 +34,7 @@ def main() -> None:
     p.add_argument("--target_fps", type=float, default=None, help="Resample both to this fps (default: min of inputs)")
     p.add_argument("--dtw_window", type=int, default=None, help="Sakoe–Chiba window on frame indices (optional)")
     p.add_argument("--no_fk", action="store_true", help="Skip FK / MPJPE-like / EE metrics")
+    p.add_argument("--no_normalize_orientation", action="store_true", help="Disable initial-yaw normalization before FK (not recommended for cross-source comparisons)")
     p.add_argument("--mujoco", action="store_true", help="Run MuJoCo self-collision proxy")
     p.add_argument(
         "--ee_bodies",
@@ -58,6 +59,7 @@ def main() -> None:
         target_fps=args.target_fps,
         dtw_window=args.dtw_window,
         use_fk=not args.no_fk,
+        normalize_orientation=not args.no_normalize_orientation,
         use_mujoco=args.mujoco,
         ee_body_names=ee,
         device=args.device,
