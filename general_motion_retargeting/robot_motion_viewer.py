@@ -126,8 +126,8 @@ class RobotMotionViewer:
         if follow_camera:
             self.viewer.cam.lookat = self.data.xpos[self.model.body(self.robot_base).id]
             self.viewer.cam.distance = self.viewer_cam_distance
-            self.viewer.cam.elevation = -10  # 正面视角，轻微向下看
-            # self.viewer.cam.azimuth = 180    # 正面朝向机器人
+            self.viewer.cam.elevation = -10
+            self.viewer.cam.azimuth = 180
         
         if human_motion_data is not None:
             # Clean custom geometry

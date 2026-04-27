@@ -69,7 +69,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--flip_facing",
         action="store_true",
-        default=True,
+        default=False,
         help="Flip 180° around the vertical axis. Use when the video was recorded facing the camera.",
     )
 
