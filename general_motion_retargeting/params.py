@@ -72,6 +72,9 @@ IK_CONFIG_DICT = {
     "bvh_xsens":{
         "unitree_g1": IK_CONFIG_ROOT / "bvh_xsens_to_g1.json",
         "unitree_h1_2": IK_CONFIG_ROOT / "bvh_xsens_to_h1_2.json",
+        "booster_t1_29dof": IK_CONFIG_ROOT / "bvh_xsens_to_booster_t1_29dof.json",
+        "fourier_n1": IK_CONFIG_ROOT / "bvh_xsens_to_fourier_n1.json",
+        "stanford_toddy": IK_CONFIG_ROOT / "bvh_xsens_to_stanford_toddy.json",
     },
     "fbx":{
         "unitree_g1": IK_CONFIG_ROOT / "fbx_to_g1.json",
