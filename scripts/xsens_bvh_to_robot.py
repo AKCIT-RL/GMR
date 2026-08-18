@@ -4,10 +4,12 @@ import time
 from general_motion_retargeting import GeneralMotionRetargeting as GMR
 from general_motion_retargeting import RobotMotionViewer
 from general_motion_retargeting.utils.xsens import load_xsens_file
+from general_motion_retargeting.kinematics_model import KinematicsModel
 from rich import print
 from tqdm import tqdm
 import os
 import numpy as np
+import torch
 
 if __name__ == "__main__":
 
@@ -188,8 +190,28 @@ if __name__ == "__main__":
         root_pos = np.array([qpos[:3] for qpos in qpos_list])
         root_rot = np.array([qpos[3:7] for qpos in qpos_list])
         dof_pos = np.array([qpos[7:] for qpos in qpos_list])
-        local_body_pos = None
-        body_names = None
+
+        # Convert root_rot from wxyz (MuJoCo/GMR) → xyzw (IsaacGym/TWIST2)
+        # vis_robot_motion.py does the inverse ([3,0,1,2]) to display correctly.
+        # smplx_to_robot_dataset.py uses the same pattern: root_rot[:, [1,2,3,0]]
+        root_rot = root_rot[:, [1, 2, 3, 0]]
+
+        # Compute local_body_pos via forward kinematics (required by TWIST2 motion_lib_pkl)
+        # FK with root at origin so positions are local (relative to root)
+        device = "cpu"
+        kinematics_model = KinematicsModel(retargeter.xml_file, device=device)
+        num_frames = root_pos.shape[0]
+        fk_root_pos = torch.zeros((num_frames, 3), dtype=torch.float)
+        fk_root_rot = torch.zeros((num_frames, 4), dtype=torch.float)
+        fk_root_rot[:, -1] = 1.0  # identity quaternion
+        dof_pos_t = torch.from_numpy(dof_pos).float()
+        with torch.no_grad():
+            local_body_pos_t, _ = kinematics_model.forward_kinematics(
+                fk_root_pos, fk_root_rot, dof_pos_t
+            )  # (N, num_bodies, 3)
+        local_body_pos = local_body_pos_t.numpy().astype(np.float32)
+        body_names = kinematics_model.body_names
+        print(f"[FK] local_body_pos shape: {local_body_pos.shape}, bodies: {len(body_names)}")
 
         motion_data = {
             "fps": motion_fps,
