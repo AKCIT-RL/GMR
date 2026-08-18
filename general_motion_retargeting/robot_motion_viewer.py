@@ -1,5 +1,10 @@
 import os
 import time
+
+# Deve ser definido ANTES de qualquer import do mujoco para funcionar em servidores
+# sem display X11. egl = GPU headless; osmesa = CPU software fallback.
+os.environ.setdefault("MUJOCO_GL", "egl")
+
 import mujoco as mj
 import mujoco.viewer as mjv
 import imageio
@@ -51,9 +56,11 @@ class RobotMotionViewer:
                 # video recording
                 record_video=False,
                 video_path=None,
-                video_width=640,
-                video_height=480,
+                video_width=1280,
+                video_height=720,
                 keyboard_callback=None,
+                # headless: pula launch_passive, usa apenas Renderer offscreen
+                headless=None,
                 ):
         
         self.robot_type = robot_type
@@ -69,29 +76,47 @@ class RobotMotionViewer:
         self.camera_follow = camera_follow
         self.record_video = record_video
 
+        # Auto-detecta headless se não especificado: sem DISPLAY → headless
+        if headless is None:
+            headless = os.environ.get("DISPLAY", "") == ""
+        self.headless = headless
 
-        self.viewer = mjv.launch_passive(
-            model=self.model,
-            data=self.data,
-            show_left_ui=False,
-            show_right_ui=False, 
-            key_callback=keyboard_callback
-            )      
+        if self.headless:
+            # Modo sem janela: câmera gerenciada manualmente
+            self.viewer = None
+            self._cam = mj.MjvCamera()
+            self._cam.type = mj.mjtCamera.mjCAMERA_TRACKING
+            self._cam.trackbodyid = self.model.body(self.robot_base).id
+            self._cam.distance = self.viewer_cam_distance
+            self._cam.azimuth = 135.0
+            self._cam.elevation = -10.0
+            self._opt = mj.MjvOption()
+            self._opt.flags[mj.mjtVisFlag.mjVIS_TRANSPARENT] = transparent_robot
+            print("[RobotMotionViewer] Modo HEADLESS (sem display X11).")
+        else:
+            self.viewer = mjv.launch_passive(
+                model=self.model,
+                data=self.data,
+                show_left_ui=False,
+                show_right_ui=False,
+                key_callback=keyboard_callback
+            )
+            self.viewer.opt.flags[mj.mjtVisFlag.mjVIS_TRANSPARENT] = transparent_robot
 
-        self.viewer.opt.flags[mj.mjtVisFlag.mjVIS_TRANSPARENT] = transparent_robot
-        
+        # Renderer offscreen: usado no modo headless OU quando record_video=True
+        if self.headless or self.record_video:
+            self._renderer = mj.Renderer(self.model, height=video_height, width=video_width)
+        else:
+            self._renderer = None
+
         if self.record_video:
             assert video_path is not None, "Please provide video path for recording"
             self.video_path = video_path
             video_dir = os.path.dirname(self.video_path)
-            
-            if not os.path.exists(video_dir):
+            if video_dir and not os.path.exists(video_dir):
                 os.makedirs(video_dir)
             self.mp4_writer = imageio.get_writer(self.video_path, fps=self.motion_fps)
-            print(f"Recording video to {self.video_path}")
-            
-            # Initialize renderer for video recording
-            self.renderer = mj.Renderer(self.model, height=video_height, width=video_width)
+            print(f"[RobotMotionViewer] Gravando vídeo em {self.video_path}")
         
     def step(self, 
             # robot data
@@ -108,54 +133,61 @@ class RobotMotionViewer:
             follow_camera=True,
             ):
         """
-        by default visualize robot motion.
-        also support visualize human motion by providing human_motion_data, to compare with robot motion.
-        
-        human_motion_data is a dict of {"human body name": (3d global translation, 3d global rotation)}.
+        Atualiza o estado do robô e renderiza um frame.
 
-        if rate_limit is True, the motion will be visualized at the same rate as the motion data.
-        else, the motion will be visualized as fast as possible.
+        Suporta dois modos:
+        - Normal (headless=False): usa mujoco.viewer.launch_passive (requer X11)
+        - Headless (headless=True): usa apenas mujoco.Renderer offscreen (sem display)
         """
         
         self.data.qpos[:3] = root_pos
-        self.data.qpos[3:7] = root_rot # quat need to be scalar first! for mujoco
+        self.data.qpos[3:7] = root_rot  # quat scalar-first para o MuJoCo
         self.data.qpos[7:] = dof_pos
         
         mj.mj_forward(self.model, self.data)
-        
-        if follow_camera:
-            self.viewer.cam.lookat = self.data.xpos[self.model.body(self.robot_base).id]
-            self.viewer.cam.distance = self.viewer_cam_distance
-            self.viewer.cam.elevation = -10  # 正面视角，轻微向下看
-            # self.viewer.cam.azimuth = 180    # 正面朝向机器人
-        
-        if human_motion_data is not None:
-            # Clean custom geometry
-            self.viewer.user_scn.ngeom = 0
-            # Draw the task targets for reference
-            for human_body_name, (pos, rot) in human_motion_data.items():
-                draw_frame(
-                    pos,
-                    R.from_quat(rot, scalar_first=True).as_matrix(),
-                    self.viewer,
-                    human_point_scale,
-                    pos_offset=human_pos_offset,
-                    joint_name=human_body_name if show_human_body_name else None
+
+        if self.headless:
+            # Modo headless: apenas renderiza offscreen (para vídeo se solicitado)
+            if self.record_video:
+                self._renderer.update_scene(self.data, camera=self._cam, scene_option=self._opt)
+                img = self._renderer.render()
+                self.mp4_writer.append_data(img)
+            if rate_limit:
+                self.rate_limiter.sleep()
+        else:
+            # Modo normal com janela
+            if follow_camera:
+                self.viewer.cam.lookat = self.data.xpos[self.model.body(self.robot_base).id]
+                self.viewer.cam.distance = self.viewer_cam_distance
+                self.viewer.cam.elevation = -10
+
+            if human_motion_data is not None:
+                self.viewer.user_scn.ngeom = 0
+                for human_body_name, (pos, rot) in human_motion_data.items():
+                    draw_frame(
+                        pos,
+                        R.from_quat(rot, scalar_first=True).as_matrix(),
+                        self.viewer,
+                        human_point_scale,
+                        pos_offset=human_pos_offset,
+                        joint_name=human_body_name if show_human_body_name else None
                     )
 
-        self.viewer.sync()
-        if rate_limit is True:
-            self.rate_limiter.sleep()
+            self.viewer.sync()
+            if rate_limit:
+                self.rate_limiter.sleep()
 
-        if self.record_video:
-            # Use renderer for proper offscreen rendering
-            self.renderer.update_scene(self.data, camera=self.viewer.cam)
-            img = self.renderer.render()
-            self.mp4_writer.append_data(img)
+            if self.record_video:
+                self._renderer.update_scene(self.data, camera=self.viewer.cam)
+                img = self._renderer.render()
+                self.mp4_writer.append_data(img)
     
     def close(self):
-        self.viewer.close()
-        time.sleep(0.5)
+        if self.viewer is not None:
+            self.viewer.close()
+            time.sleep(0.5)
+        if self._renderer is not None:
+            self._renderer.close()
         if self.record_video:
             self.mp4_writer.close()
-            print(f"Video saved to {self.video_path}")
+            print(f"[RobotMotionViewer] Vídeo salvo em {self.video_path}")

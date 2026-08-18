@@ -106,7 +106,7 @@ class mujoco_displayanimanim:
         ) as self.viewer:
             frame_idx = 0
             self.set_camera()
-            self.renderer = mujoco.renderer.Renderer(self.model, height=480, width=640)
+            self.renderer = mujoco.Renderer(self.model, height=480, width=640)
             self.video_recorder = VideoRecorder(
                 path="./recordings",
                 tag=None,

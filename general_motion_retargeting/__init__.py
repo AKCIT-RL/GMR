@@ -1,3 +1,8 @@
+import os
+# MUJOCO_GL deve ser definido antes de qualquer import do mujoco.
+# egl = headless GPU (sem X11). Só tem efeito se ainda não estiver definido.
+os.environ.setdefault("MUJOCO_GL", "egl")
+
 from rich import print
 from .params import IK_CONFIG_ROOT, ASSET_ROOT, ROBOT_XML_DICT, IK_CONFIG_DICT, ROBOT_BASE_DICT, VIEWER_CAM_DISTANCE_DICT
 from .motion_retarget import GeneralMotionRetargeting
